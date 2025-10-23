@@ -1,8 +1,10 @@
-import { Link } from 'react-router-dom';
-import { Star, ShoppingCart } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Star, ShoppingCart, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { useCart } from '@/contexts/CartContext';
+import { useWishlist } from '@/contexts/WishlistContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 interface ProductCardProps {
@@ -16,23 +18,69 @@ interface ProductCardProps {
 
 const ProductCard = ({ id, title, price, image, rating, reviews }: ProductCardProps) => {
   const { addToCart } = useCart();
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!user) {
+      toast.error('Please sign in to add items to your cart', {
+        action: {
+          label: 'Sign In',
+          onClick: () => navigate('/login'),
+        },
+      });
+      return;
+    }
     addToCart({ id, title, price, image });
     toast.success('Added to cart!');
+  };
+
+  const handleWishlistToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!user) {
+      toast.error('Please sign in to save items to your wishlist', {
+        action: {
+          label: 'Sign In',
+          onClick: () => navigate('/login'),
+        },
+      });
+      return;
+    }
+    if (isInWishlist(id)) {
+      removeFromWishlist(id);
+      toast.success('Removed from wishlist');
+    } else {
+      addToWishlist({ id, title, price, image, rating });
+      toast.success('Added to wishlist!');
+    }
   };
 
   return (
     <Link to={`/product/${id}`}>
       <Card className="h-full hover:shadow-[var(--shadow-hover)] transition-all duration-300 hover:-translate-y-1 bg-card border-border">
         <CardContent className="p-4">
-          <div className="aspect-square mb-4 overflow-hidden rounded-lg bg-muted">
+          <div className="relative aspect-square mb-4 overflow-hidden rounded-lg bg-muted">
             <img
               src={image}
               alt={title}
               className="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
             />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleWishlistToggle}
+              className="absolute top-2 right-2 bg-background/80 hover:bg-background backdrop-blur-sm"
+            >
+              <Heart
+                className={`h-5 w-5 ${
+                  isInWishlist(id)
+                    ? 'fill-accent text-accent'
+                    : 'text-muted-foreground'
+                }`}
+              />
+            </Button>
           </div>
           
           <h3 className="font-semibold text-card-foreground line-clamp-2 mb-2 min-h-[2.5rem]">

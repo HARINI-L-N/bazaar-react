@@ -5,13 +5,17 @@ A complete Amazon-inspired e-commerce frontend built with React, TypeScript, and
 ## 🚀 Features
 
 - **Home Page**: Grid layout with featured products, hero section, and responsive design
-- **Product Details**: Full product information with recommendations and add-to-cart functionality
-- **Authentication**: Login and registration pages with form validation
+- **Product Search**: Real-time search with filter and sort capabilities
+- **Product Details**: Full product information with recommendations, quantity selector, and wishlist
+- **Authentication**: Login and registration with form validation and auto-redirect
 - **User Profile**: Display user details, order history, and recently viewed products
-- **Shopping Cart**: Full cart management with quantity updates and order summary
+- **Shopping Cart**: Full cart management (login required) with quantity updates and order summary
+- **Wishlist**: Save favorite products for later (login required)
 - **Protected Routes**: Authentication-based route protection
+- **Loading States**: Professional skeleton loaders for better UX
 - **Responsive Design**: Mobile-first design that works on all devices
-- **State Management**: Context API for auth and cart with localStorage persistence
+- **State Management**: Context API for auth, cart, and wishlist with localStorage persistence
+- **Professional UX**: Toast notifications, empty states, and smooth animations
 
 ## 🛠️ Tech Stack
 
@@ -23,6 +27,34 @@ A complete Amazon-inspired e-commerce frontend built with React, TypeScript, and
 - **Shadcn/ui** - UI components
 - **Context API** - State management
 - **Vite** - Build tool
+
+## ✨ Professional Features
+
+### Authentication-Required Cart
+- Users must sign in to add items to cart
+- Friendly prompts with quick sign-in actions
+- Cart data persists per user account
+
+### Wishlist System
+- Save favorite products for later
+- Heart icon on product cards for quick wishlist access
+- Protected route requiring authentication
+- Separate wishlist counter in navigation
+
+### Advanced Search & Filtering
+- Real-time product search
+- Category filtering
+- Multiple sort options (price, rating, featured)
+- Search results with product count
+- URL-based search queries
+
+### Professional UI/UX
+- Loading skeleton screens
+- Quantity selector on product details
+- Empty state designs for cart and wishlist
+- Interactive toast notifications with actions
+- Smooth hover animations and transitions
+- Responsive mobile navigation
 
 ## 📦 Installation
 
@@ -117,11 +149,13 @@ src/
 │   ├── Navbar.tsx
 │   ├── Footer.tsx
 │   ├── ProductCard.tsx
+│   ├── ProductCardSkeleton.tsx
 │   ├── ProductList.tsx
 │   └── ProtectedRoute.tsx
 ├── contexts/        # React Context providers
 │   ├── AuthContext.tsx
-│   └── CartContext.tsx
+│   ├── CartContext.tsx
+│   └── WishlistContext.tsx
 ├── lib/            # Utilities and API config
 │   ├── api.ts      # Axios configuration
 │   ├── utils.ts    # Helper functions
@@ -132,6 +166,7 @@ src/
 │   ├── Login.tsx
 │   ├── Register.tsx
 │   ├── Profile.tsx
+│   ├── Wishlist.tsx
 │   └── Cart.tsx
 ├── App.tsx         # Main app component with routing
 └── index.css       # Global styles and design system
@@ -158,14 +193,26 @@ All design tokens are defined in `src/index.css` and can be customized.
 4. Token is stored in localStorage
 5. Protected routes check for authentication
 6. Token is automatically added to API requests
+7. **Cart and wishlist require authentication**
+8. Automatic redirect when already logged in
 
 ## 🛒 Shopping Cart Flow
 
-1. User adds product to cart
-2. Cart state is managed via CartContext
-3. Cart persists in localStorage
-4. User can update quantities or remove items
-5. Checkout creates an order via `/orders` endpoint
+1. User must be logged in to add products to cart
+2. If not logged in, user sees toast with "Sign In" action
+3. Cart state is managed via CartContext
+4. Cart persists in localStorage per user account
+5. User can update quantities or remove items
+6. Checkout creates an order via `/orders` endpoint
+
+## ❤️ Wishlist Flow
+
+1. User must be logged in to add to wishlist
+2. Heart icon on product cards for quick access
+3. Wishlist state managed via WishlistContext
+4. Data persists in localStorage per user
+5. Can move items from wishlist to cart
+6. Dedicated `/wishlist` page (protected route)
 
 ## 📱 Responsive Design
 

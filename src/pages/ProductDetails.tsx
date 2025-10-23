@@ -1,19 +1,25 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductList from '@/components/ProductList';
 import { Button } from '@/components/ui/button';
-import { Star, ShoppingCart } from 'lucide-react';
+import { Star, ShoppingCart, Heart, Plus, Minus } from 'lucide-react';
 import { mockProducts } from '@/lib/mockData';
 import { useCart } from '@/contexts/CartContext';
+import { useWishlist } from '@/contexts/WishlistContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 const ProductDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [product, setProduct] = useState(mockProducts.find(p => p.id === id));
   const [recommendations, setRecommendations] = useState(mockProducts.slice(0, 4));
+  const [quantity, setQuantity] = useState(1);
   const { addToCart } = useCart();
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { user } = useAuth();
 
   useEffect(() => {
     // TODO: Replace with actual API calls
@@ -34,13 +40,50 @@ const ProductDetails = () => {
   }
 
   const handleAddToCart = () => {
-    addToCart({
-      id: product.id,
-      title: product.title,
-      price: product.price,
-      image: product.image,
-    });
-    toast.success('Added to cart!');
+    if (!user) {
+      toast.error('Please sign in to add items to your cart', {
+        action: {
+          label: 'Sign In',
+          onClick: () => navigate('/login'),
+        },
+      });
+      return;
+    }
+    for (let i = 0; i < quantity; i++) {
+      addToCart({
+        id: product.id,
+        title: product.title,
+        price: product.price,
+        image: product.image,
+      });
+    }
+    toast.success(`Added ${quantity} item(s) to cart!`);
+    setQuantity(1);
+  };
+
+  const handleWishlistToggle = () => {
+    if (!user) {
+      toast.error('Please sign in to save items to your wishlist', {
+        action: {
+          label: 'Sign In',
+          onClick: () => navigate('/login'),
+        },
+      });
+      return;
+    }
+    if (isInWishlist(product.id)) {
+      removeFromWishlist(product.id);
+      toast.success('Removed from wishlist');
+    } else {
+      addToWishlist({
+        id: product.id,
+        title: product.title,
+        price: product.price,
+        image: product.image,
+        rating: product.rating,
+      });
+      toast.success('Added to wishlist!');
+    }
   };
 
   return (
@@ -106,14 +149,55 @@ const ProductDetails = () => {
               </div>
             </div>
 
-            <Button
-              onClick={handleAddToCart}
-              size="lg"
-              className="w-full bg-accent hover:bg-accent/90 text-accent-foreground text-lg"
-            >
-              <ShoppingCart className="h-5 w-5 mr-2" />
-              Add to Cart
-            </Button>
+            {/* Quantity Selector */}
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">Quantity:</span>
+              <div className="flex items-center border border-border rounded-lg">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  disabled={quantity <= 1}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="px-6 font-semibold text-foreground">{quantity}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setQuantity(Math.min(10, quantity + 1))}
+                  disabled={quantity >= 10}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={handleAddToCart}
+                size="lg"
+                disabled={!product.inStock}
+                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground text-lg"
+              >
+                <ShoppingCart className="h-5 w-5 mr-2" />
+                Add to Cart
+              </Button>
+              <Button
+                onClick={handleWishlistToggle}
+                variant="outline"
+                size="lg"
+                className="border-2"
+              >
+                <Heart
+                  className={`h-5 w-5 ${
+                    isInWishlist(product.id)
+                      ? 'fill-accent text-accent'
+                      : ''
+                  }`}
+                />
+              </Button>
+            </div>
           </div>
         </div>
 

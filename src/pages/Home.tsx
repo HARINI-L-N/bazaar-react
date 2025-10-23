@@ -1,19 +1,72 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductList from '@/components/ProductList';
+import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 import { mockProducts } from '@/lib/mockData';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import heroBanner from '@/assets/hero-banner.jpg';
+import { SlidersHorizontal } from 'lucide-react';
 
 const Home = () => {
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState(mockProducts);
-  const [isLoading, setIsLoading] = useState(false);
+  const [filteredProducts, setFilteredProducts] = useState(mockProducts);
+  const [isLoading, setIsLoading] = useState(true);
+  const [sortBy, setSortBy] = useState('featured');
+  const [filterCategory, setFilterCategory] = useState('all');
+
+  const searchQuery = searchParams.get('search');
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    // endpoints.getProducts().then(response => setProducts(response.data));
-    setIsLoading(false);
+    // Simulate loading
+    setIsLoading(true);
+    setTimeout(() => {
+      // TODO: Replace with actual API call
+      // endpoints.getProducts().then(response => setProducts(response.data));
+      setIsLoading(false);
+    }, 800);
   }, []);
+
+  useEffect(() => {
+    let filtered = [...products];
+
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter(product =>
+        product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.category.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Apply category filter
+    if (filterCategory !== 'all') {
+      filtered = filtered.filter(product => product.category === filterCategory);
+    }
+
+    // Apply sorting
+    switch (sortBy) {
+      case 'price-low':
+        filtered.sort((a, b) => a.price - b.price);
+        break;
+      case 'price-high':
+        filtered.sort((a, b) => b.price - a.price);
+        break;
+      case 'rating':
+        filtered.sort((a, b) => b.rating - a.rating);
+        break;
+      case 'featured':
+      default:
+        // Keep original order
+        break;
+    }
+
+    setFilteredProducts(filtered);
+  }, [products, searchQuery, sortBy, filterCategory]);
+
+  const categories = ['all', ...new Set(mockProducts.map(p => p.category))];
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -40,12 +93,77 @@ const Home = () => {
 
         {/* Products Section */}
         <div className="container mx-auto px-4 py-12">
+          {/* Search Results Header */}
+          {searchQuery && (
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-foreground">
+                Search results for "{searchQuery}"
+              </h2>
+              <p className="text-muted-foreground">
+                {filteredProducts.length} products found
+              </p>
+            </div>
+          )}
+
+          {/* Filters and Sort */}
+          <div className="flex flex-col md:flex-row gap-4 mb-8">
+            <div className="flex items-center gap-2 flex-1">
+              <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="w-full md:w-48">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(category => (
+                    <SelectItem key={category} value={category}>
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="featured">Featured</SelectItem>
+                <SelectItem value="price-low">Price: Low to High</SelectItem>
+                <SelectItem value="price-high">Price: High to Low</SelectItem>
+                <SelectItem value="rating">Highest Rated</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {isLoading ? (
+            <div>
+              <h2 className="text-3xl font-bold mb-6 text-foreground">Featured Products</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {[...Array(8)].map((_, i) => (
+                  <ProductCardSkeleton key={i} />
+                ))}
+              </div>
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="text-center py-20">
-              <div className="text-xl">Loading products...</div>
+              <h3 className="text-2xl font-bold mb-2 text-foreground">No products found</h3>
+              <p className="text-muted-foreground mb-6">Try adjusting your filters or search terms</p>
+              <Button
+                onClick={() => {
+                  setFilterCategory('all');
+                  setSortBy('featured');
+                }}
+                variant="outline"
+              >
+                Clear Filters
+              </Button>
             </div>
           ) : (
-            <ProductList products={products} title="Featured Products" />
+            <ProductList 
+              products={filteredProducts} 
+              title={!searchQuery ? "Featured Products" : undefined} 
+            />
           )}
         </div>
       </main>
