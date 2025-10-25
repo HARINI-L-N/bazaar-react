@@ -32,28 +32,41 @@ export const endpoints = {
   // Products
   getProducts: () => api.get('/products'),
   getProduct: (id: string) => api.get(`/products/${id}`),
-  getRecommendations: (id: string) => api.get(`/recommendations/${id}`),
+  getRecommendations: (userId: string) => api.get(`/recommendations/${userId}`),
+  getCategories: () => api.get('/products/categories'),
+  getFeaturedProducts: () => api.get('/products/featured'),
   
   // Users
-  register: (data: { email: string; password: string; name: string }) =>
+  register: (data: { username: string; email: string; password: string; first_name?: string; last_name?: string }) =>
     api.post('/users/register', data),
-  login: (data: { email: string; password: string }) =>
+  login: (data: { username: string; password: string }) =>
     api.post('/users/login', data),
+  getProfile: () => api.get('/users/profile'),
+  updateProfile: (data: any) => api.put('/users/profile', data),
   getUserHistory: (userId: string) => api.get(`/users/${userId}/history`),
   getUserOrders: (userId: string) => api.get(`/users/${userId}/orders`),
   
   // Cart
   getCart: () => api.get('/cart'),
-  addToCart: (data: { productId: string; quantity: number }) =>
+  addToCart: (data: { product_id: string; quantity: number }) =>
     api.post('/cart', data),
-  updateCart: (itemId: string, quantity: number) =>
-    api.put(`/cart/${itemId}`, { quantity }),
-  removeFromCart: (itemId: string) => api.delete(`/cart/${itemId}`),
+  updateCartItem: (productId: string, quantity: number) =>
+    api.put(`/cart/${productId}`, { quantity }),
+  removeFromCart: (productId: string) => api.delete(`/cart/${productId}`),
+  clearCart: () => api.delete('/cart/clear'),
   
   // Orders
   getOrders: () => api.get('/orders'),
-  createOrder: (data: { items: any[]; total: number }) =>
+  getOrder: (orderId: string) => api.get(`/orders/${orderId}`),
+  createOrder: (data: { shipping_address: any; payment_method: string }) =>
     api.post('/orders', data),
+  updateOrderStatus: (orderId: string, status: string) =>
+    api.put(`/orders/${orderId}/status`, { status }),
+  
+  // Tracking
+  trackProductView: (data: { product_id: string; view_duration?: number }) =>
+    api.post('/track/view', data),
+  getRecentHistory: (userId: string) => api.get(`/users/${userId}/history/recent`),
 };
 
 export default api;
