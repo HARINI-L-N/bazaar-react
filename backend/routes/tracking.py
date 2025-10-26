@@ -27,15 +27,28 @@ def track_product_view():
         if not product:
             return format_error_response("Product not found", 404)
         
-        # Create or update view tracking
-        viewed_product = ViewedProduct(
+        # Check if user already viewed this product recently (within 1 hour)
+        recent_view = ViewedProduct.objects(
             user_id=user.id,
             product_id=product_id,
-            view_duration=view_duration
-        )
-        viewed_product.save()
+            viewed_at__gte=datetime.utcnow() - timedelta(hours=1)
+        ).first()
         
-        return format_success_response(viewed_product.to_dict(), "Product view tracked")
+        if recent_view:
+            # Update existing view with new duration
+            recent_view.view_duration += view_duration
+            recent_view.viewed_at = datetime.utcnow()
+            recent_view.save()
+            return format_success_response(recent_view.to_dict(), "Product view updated")
+        else:
+            # Create new view tracking
+            viewed_product = ViewedProduct(
+                user_id=user.id,
+                product_id=product_id,
+                view_duration=view_duration
+            )
+            viewed_product.save()
+            return format_success_response(viewed_product.to_dict(), "Product view tracked")
         
     except Exception as e:
         return format_error_response(f"Failed to track product view: {str(e)}", 500)

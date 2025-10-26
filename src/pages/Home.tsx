@@ -4,7 +4,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ProductList from '@/components/ProductList';
 import ProductCardSkeleton from '@/components/ProductCardSkeleton';
-import { mockProducts } from '@/lib/mockData';
+import { endpoints } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import heroBanner from '@/assets/hero-banner.jpg';
@@ -12,8 +12,8 @@ import { SlidersHorizontal } from 'lucide-react';
 
 const Home = () => {
   const [searchParams] = useSearchParams();
-  const [products, setProducts] = useState(mockProducts);
-  const [filteredProducts, setFilteredProducts] = useState(mockProducts);
+  const [products, setProducts] = useState<any[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState('featured');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -21,13 +21,35 @@ const Home = () => {
   const searchQuery = searchParams.get('search');
 
   useEffect(() => {
-    // Simulate loading
+    // Load products from backend
     setIsLoading(true);
-    setTimeout(() => {
-      // TODO: Replace with actual API call
-      // endpoints.getProducts().then(response => setProducts(response.data));
-      setIsLoading(false);
-    }, 800);
+    endpoints
+      .getProducts()
+      .then((res) => {
+        // API responses are wrapped as { data: <payload>, message: ... }
+        const payload = res.data && res.data.data ? res.data.data : res.data;
+        const rawProducts = payload?.products || [];
+
+        // Normalize backend product shape to frontend-friendly shape used throughout the UI
+  const transform = (p) => ({
+          id: p.id || p._id || (p._id && p._id.$oid) || String(p.id),
+          title: p.title || p.name || '',
+          price: p.price ?? p.amount ?? 0,
+          image: p.image || p.image_url || p.imageUrl || '',
+          rating: p.rating ?? 0,
+          reviews: p.review_count ?? p.reviews ?? 0,
+          description: p.description || p.desc || '',
+          category: p.category || (p.category && String(p.category)) || '',
+          inStock: (p.stock_quantity ?? p.stock ?? 0) > 0,
+        });
+
+        setProducts(Array.isArray(rawProducts) ? rawProducts.map(transform) : []);
+      })
+      .catch((err) => {
+        console.error('Failed to load products', err);
+        setProducts([]);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -66,7 +88,7 @@ const Home = () => {
     setFilteredProducts(filtered);
   }, [products, searchQuery, sortBy, filterCategory]);
 
-  const categories = ['all', ...new Set(mockProducts.map(p => p.category))];
+  const categories = ['all', ...Array.from(new Set(products.map(p => p.category)))] as string[];
 
   return (
     <div className="flex flex-col min-h-screen">

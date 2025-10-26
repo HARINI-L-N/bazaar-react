@@ -52,22 +52,37 @@ def get_products():
             sort_criteria.append(('created_at', -1 if sort_order == 'desc' else 1))
         
         # Get products with pagination
-        products = Product.objects(**query).order_by(*sort_criteria).paginate(
-            page=page, per_page=per_page
-        )
-        
+        # Use a raw query since `query` may contain MongoDB operators like $or or $gte
+        # and Product.objects(**query) would treat those as invalid keyword args.
+        # Build order_by strings for mongoengine (e.g. '-price' or 'price').
+        order_by_args = []
+        for field, direction in sort_criteria:
+            if direction == -1:
+                order_by_args.append(f'-{field}')
+            else:
+                order_by_args.append(f'{field}')
+
+        # Use manual pagination (skip/limit) for robustness across mongoengine versions
+        base_qs = Product.objects(__raw__=query).order_by(*order_by_args)
+        total = base_qs.count()
+        # Calculate pages
+        pages = math.ceil(total / per_page) if per_page > 0 else 1
+        # Apply skip & limit
+        skip = max(0, (page - 1) * per_page)
+        items_qs = base_qs.skip(skip).limit(per_page)
+
         # Convert to dict
-        products_data = [product.to_dict() for product in products.items]
-        
+        products_data = [product.to_dict() for product in items_qs]
+
         return format_success_response({
             'products': products_data,
             'pagination': {
                 'page': page,
                 'per_page': per_page,
-                'total': products.total,
-                'pages': products.pages,
-                'has_next': products.has_next,
-                'has_prev': products.has_prev
+                'total': total,
+                'pages': pages,
+                'has_next': page < pages,
+                'has_prev': page > 1
             }
         })
         

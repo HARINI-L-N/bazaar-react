@@ -1,15 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { endpoints } from '@/lib/api';
 
 interface User {
   id: string;
   email: string;
   name: string;
+  token?: string; // JWT access token provided by backend
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
+  register: (username: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -24,24 +26,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check for stored user session
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        const parsed = JSON.parse(storedUser);
+        // Keep backward compatibility if older mock user without token is present
+        setUser(parsed);
+      } catch (e) {
+        setUser(null);
+      }
     }
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
-    // This will connect to your Flask backend
-    // For now, storing mock data
-    const mockUser = { id: '1', email, name: email.split('@')[0] };
-    localStorage.setItem('user', JSON.stringify(mockUser));
-    setUser(mockUser);
+  const login = async (username: string, password: string) => {
+    // Call backend login endpoint to obtain JWT
+    const res = await endpoints.login({ username, password });
+    const payload = res.data && res.data.data ? res.data.data : res.data;
+    const userData = payload?.user;
+    const token = payload?.access_token || payload?.token;
+
+    if (!userData) throw new Error('Login failed: no user returned');
+
+    const stored = { id: userData.id || userData._id || String(userData.id), email: userData.email, name: userData.username || userData.first_name || userData.name || '', token };
+    localStorage.setItem('user', JSON.stringify(stored));
+    setUser(stored);
   };
 
-  const register = async (email: string, password: string, name: string) => {
-    // This will connect to your Flask backend
-    const mockUser = { id: '1', email, name };
-    localStorage.setItem('user', JSON.stringify(mockUser));
-    setUser(mockUser);
+  const register = async (username: string, password: string, name?: string) => {
+    // Call backend register endpoint
+    const res = await endpoints.register({ username, email: username, password, first_name: name });
+    const payload = res.data && res.data.data ? res.data.data : res.data;
+    const userData = payload?.user;
+    const token = payload?.access_token || payload?.token;
+
+    if (!userData) throw new Error('Registration failed: no user returned');
+
+    const stored = { id: userData.id || userData._id || String(userData.id), email: userData.email, name: userData.username || userData.first_name || userData.name || '', token };
+    localStorage.setItem('user', JSON.stringify(stored));
+    setUser(stored);
   };
 
   const logout = () => {

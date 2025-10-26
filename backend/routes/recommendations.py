@@ -5,6 +5,10 @@ from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
 from collections import defaultdict
 import random
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import re
 
 recommendations_bp = Blueprint('recommendations', __name__)
 
@@ -190,6 +194,167 @@ def get_popular_products(limit):
         print(f"Error getting popular products: {e}")
         return []
 
+@recommendations_bp.route('/recommendations/content/<product_id>', methods=['GET'])
+def get_content_based_recommendations(product_id):
+    """Get content-based recommendations for a specific product"""
+    try:
+        # Get the reference product
+        reference_product = Product.objects(id=product_id, is_active=True).first()
+        if not reference_product:
+            return format_error_response("Product not found", 404)
+        
+        # Get all other products
+        all_products = Product.objects(is_active=True)
+        if all_products.count() <= 1:
+            return format_success_response([])
+        
+        # Prepare text data for TF-IDF
+        product_texts = []
+        product_ids = []
+        
+        for product in all_products:
+            if str(product.id) == product_id:
+                continue
+            
+            # Combine product features into text
+            text_parts = [
+                product.name,
+                product.description,
+                product.category,
+                ' '.join(product.tags) if product.tags else '',
+                ' '.join(product.features) if product.features else ''
+            ]
+            combined_text = ' '.join(filter(None, text_parts))
+            product_texts.append(combined_text)
+            product_ids.append(str(product.id))
+        
+        if not product_texts:
+            return format_success_response([])
+        
+        # Create reference product text
+        ref_text_parts = [
+            reference_product.name,
+            reference_product.description,
+            reference_product.category,
+            ' '.join(reference_product.tags) if reference_product.tags else '',
+            ' '.join(reference_product.features) if reference_product.features else ''
+        ]
+        ref_text = ' '.join(filter(None, ref_text_parts))
+        
+        # Vectorize texts
+        vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
+        all_texts = [ref_text] + product_texts
+        tfidf_matrix = vectorizer.fit_transform(all_texts)
+        
+        # Calculate cosine similarity
+        similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+        
+        # Get top similar products
+        similar_indices = np.argsort(similarities)[::-1][:6]  # Top 6 similar products
+        
+        recommendations = []
+        for idx in similar_indices:
+            if similarities[idx] > 0.1:  # Minimum similarity threshold
+                product = Product.objects(id=product_ids[idx]).first()
+                if product:
+                    recommendations.append({
+                        'product_id': product_ids[idx],
+                        'product': product.to_dict(),
+                        'similarity_score': float(similarities[idx]),
+                        'algorithm': 'content_based'
+                    })
+        
+        return format_success_response({
+            'reference_product': reference_product.to_dict(),
+            'recommendations': recommendations,
+            'count': len(recommendations)
+        })
+        
+    except Exception as e:
+        return format_error_response(f"Failed to get content-based recommendations: {str(e)}", 500)
+
+@recommendations_bp.route('/recommendations/collaborative/<user_id>', methods=['GET'])
+@jwt_required()
+def get_collaborative_recommendations(user_id):
+    """Get collaborative filtering recommendations for a user"""
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return format_error_response("User not found", 404)
+        
+        # Check if user is requesting their own recommendations or is admin
+        if str(current_user.id) != user_id and current_user.username != 'admin':
+            return format_error_response("Access denied", 403)
+        
+        # Get user's viewed products
+        user_viewed = ViewedProduct.objects(user_id=user_id)
+        user_product_ids = [str(vp.product_id) for vp in user_viewed]
+        
+        if not user_product_ids:
+            # If no history, return popular products
+            return get_popular_products(8)
+        
+        # Find similar users based on viewing patterns
+        all_users = User.objects()
+        similar_users = []
+        
+        for user in all_users:
+            if str(user.id) == user_id:
+                continue
+            
+            other_viewed = ViewedProduct.objects(user_id=user.id)
+            other_product_ids = [str(vp.product_id) for vp in other_viewed]
+            
+            if other_product_ids:
+                similarity = calculate_similarity_score(user_product_ids, other_product_ids)
+                if similarity > 0.2:  # Higher threshold for collaborative filtering
+                    similar_users.append({
+                        'user_id': str(user.id),
+                        'similarity': similarity,
+                        'viewed_products': other_product_ids
+                    })
+        
+        if not similar_users:
+            return get_popular_products(8)
+        
+        # Sort by similarity and get top users
+        similar_users.sort(key=lambda x: x['similarity'], reverse=True)
+        top_similar_users = similar_users[:5]
+        
+        # Get products recommended by similar users
+        recommended_products = defaultdict(float)
+        
+        for similar_user in top_similar_users:
+            for product_id in similar_user['viewed_products']:
+                if product_id not in user_product_ids:
+                    recommended_products[product_id] += similar_user['similarity']
+        
+        # Get product details and calculate final scores
+        product_scores = []
+        for product_id, score in recommended_products.items():
+            product = Product.objects(id=product_id, is_active=True).first()
+            if product:
+                # Boost score based on product rating
+                boosted_score = score * (1 + product.rating / 5.0)
+                product_scores.append({
+                    'product_id': product_id,
+                    'product': product.to_dict(),
+                    'score': boosted_score,
+                    'algorithm': 'collaborative'
+                })
+        
+        # Sort by score and return top 8-10
+        product_scores.sort(key=lambda x: x['score'], reverse=True)
+        
+        return format_success_response({
+            'recommendations': product_scores[:10],
+            'count': len(product_scores[:10]),
+            'algorithm': 'collaborative'
+        })
+        
+    except Exception as e:
+        return format_error_response(f"Failed to get collaborative recommendations: {str(e)}", 500)
+
 @recommendations_bp.route('/recommendations/<user_id>/similar/<product_id>', methods=['GET'])
 @jwt_required()
 def get_similar_products(user_id, product_id):
@@ -237,4 +402,30 @@ def get_similar_products(user_id, product_id):
         
     except Exception as e:
         return format_error_response(f"Failed to get similar products: {str(e)}", 500)
+
+def get_popular_products(limit=8):
+    """Get popular products as fallback recommendations"""
+    try:
+        products = Product.objects(
+            is_active=True,
+            rating__gte=3.0
+        ).order_by('-rating', '-review_count').limit(limit)
+        
+        recommendations = []
+        for product in products:
+            recommendations.append({
+                'product_id': str(product.id),
+                'product': product.to_dict(),
+                'score': product.rating,
+                'algorithm': 'popular'
+            })
+        
+        return format_success_response({
+            'recommendations': recommendations,
+            'count': len(recommendations),
+            'algorithm': 'popular'
+        })
+        
+    except Exception as e:
+        return format_error_response(f"Failed to get popular products: {str(e)}", 500)
 

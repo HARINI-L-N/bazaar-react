@@ -6,18 +6,57 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockOrders, mockViewHistory } from '@/lib/mockData';
+import { endpoints } from '@/lib/api';
 import { Package } from 'lucide-react';
 
 const Profile = () => {
   const { user } = useAuth();
-  const [orders, setOrders] = useState(mockOrders);
-  const [viewHistory, setViewHistory] = useState(mockViewHistory);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [viewHistory, setViewHistory] = useState<any[]>([]);
 
   useEffect(() => {
-    // TODO: Replace with actual API calls
-    // endpoints.getUserOrders(user?.id).then(response => setOrders(response.data));
-    // endpoints.getUserHistory(user?.id).then(response => setViewHistory(response.data));
+    if (!user) return;
+    endpoints
+      .getUserOrders(user.id)
+      .then((res) => {
+        const payload = res.data && res.data.data ? res.data.data : res.data;
+        const raw = payload || [];
+        // Normalize orders to the frontend shape used in the UI
+        const normalized = (raw || []).map((o) => ({
+          id: o.id || o._id || String(o.id),
+          date: o.created_at || o.date || '',
+          total: o.total_amount ?? o.total ?? 0,
+          status: o.status || 'pending',
+          items: (o.items || []).map((it) => ({
+            id: it.product_id || it.product_id || '',
+            title: it.product_name || it.title || '',
+            quantity: it.quantity || 1,
+            price: it.price ?? 0,
+          })),
+        }));
+        setOrders(Array.isArray(normalized) ? normalized : []);
+      })
+      .catch((err) => console.error('Failed to load orders', err));
+
+    endpoints
+      .getUserHistory(user.id)
+      .then((res) => {
+        const payload = res.data && res.data.data ? res.data.data : res.data;
+        const raw = payload || [];
+        const transform = (p) => ({
+          id: p.id || p._id || String(p.id),
+          title: p.title || p.name || '',
+          price: p.price ?? p.amount ?? 0,
+          image: p.image || p.image_url || p.imageUrl || '',
+          rating: p.rating ?? 0,
+          reviews: p.review_count ?? p.reviews ?? 0,
+          description: p.description || '',
+          category: p.category || '',
+          inStock: (p.stock_quantity ?? p.stock ?? 0) > 0,
+        });
+        setViewHistory(Array.isArray(raw) ? raw.map(transform) : []);
+      })
+      .catch((err) => console.error('Failed to load view history', err));
   }, [user]);
 
   return (

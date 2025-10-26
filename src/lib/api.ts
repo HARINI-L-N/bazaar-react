@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Configure base URL for your Flask backend
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -33,6 +33,8 @@ export const endpoints = {
   getProducts: () => api.get('/products'),
   getProduct: (id: string) => api.get(`/products/${id}`),
   getRecommendations: (userId: string) => api.get(`/recommendations/${userId}`),
+  // Product-level content recommendations (no auth required)
+  getProductRecommendations: (productId: string) => api.get(`/recommendations/content/${productId}`),
   getCategories: () => api.get('/products/categories'),
   getFeaturedProducts: () => api.get('/products/featured'),
   

@@ -5,7 +5,7 @@ import Footer from '@/components/Footer';
 import ProductList from '@/components/ProductList';
 import { Button } from '@/components/ui/button';
 import { Star, ShoppingCart, Heart, Plus, Minus } from 'lucide-react';
-import { mockProducts } from '@/lib/mockData';
+import { endpoints } from '@/lib/api';
 import { useCart } from '@/contexts/CartContext';
 import { useWishlist } from '@/contexts/WishlistContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,17 +14,64 @@ import { toast } from 'sonner';
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [product, setProduct] = useState(mockProducts.find(p => p.id === id));
-  const [recommendations, setRecommendations] = useState(mockProducts.slice(0, 4));
+  const [product, setProduct] = useState<any | null>(null);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
   const [quantity, setQuantity] = useState(1);
   const { addToCart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { user } = useAuth();
 
   useEffect(() => {
-    // TODO: Replace with actual API calls
-    // endpoints.getProduct(id).then(response => setProduct(response.data));
-    // endpoints.getRecommendations(id).then(response => setRecommendations(response.data));
+    if (!id) return;
+    endpoints
+      .getProduct(id)
+      .then((res) => {
+        const payload = res.data && res.data.data ? res.data.data : res.data;
+        const p = payload || null;
+        if (!p) {
+          setProduct(null);
+          return;
+        }
+
+        const transformed = {
+          id: p.id || p._id || String(p.id),
+          title: p.title || p.name || '',
+          price: p.price ?? p.amount ?? 0,
+          image: p.image || p.image_url || p.imageUrl || '',
+          rating: p.rating ?? 0,
+          reviews: p.review_count ?? p.reviews ?? 0,
+          description: p.description || '',
+          category: p.category || '',
+          inStock: (p.stock_quantity ?? p.stock ?? 0) > 0,
+        };
+
+        setProduct(transformed);
+      })
+      .catch((err) => console.error('Failed to load product', err));
+
+    // Load product-level content recommendations (no auth required)
+    endpoints
+      .getProductRecommendations(id)
+      .then((res) => {
+        const payload = res.data && res.data.data ? res.data.data : res.data;
+        const rawRecommendations = payload?.recommendations || [];
+        const transform = (item) => {
+          const p = item.product || item;
+          return {
+            id: p.id || p._id || String(p.id),
+            title: p.title || p.name || '',
+            price: p.price ?? p.amount ?? 0,
+            image: p.image || p.image_url || p.imageUrl || '',
+            rating: p.rating ?? 0,
+            reviews: p.review_count ?? p.reviews ?? 0,
+            description: p.description || '',
+            category: p.category || '',
+            inStock: (p.stock_quantity ?? p.stock ?? 0) > 0,
+          };
+        };
+        setRecommendations(Array.isArray(rawRecommendations) ? rawRecommendations.map(transform) : []);
+      })
+      .catch((err) => console.error('Failed to load recommendations', err));
   }, [id]);
 
   if (!product) {
