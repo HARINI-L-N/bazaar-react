@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from pprint import pprint
 
 from pymongo import MongoClient
+from werkzeug.security import generate_password_hash
 from dotenv import load_dotenv
 
 # Load .env if present (project root .env should contain MONGO_URI or similar)
@@ -72,8 +73,50 @@ def seed_products():
          "price": 12.00, "seed_source": "bazaar-seed"},
     ]
 
+    # --- Generate 50 additional realistic products to enrich recommendations ---
+    brands = ["Apple", "Samsung", "Sony", "OnePlus", "Anker", "Logitech", "Philips", "Dyson", "Nikon", "Canon"]
+    extra_categories = ["electronics", "fashion", "home", "books", "sports", "beauty", "toys", "accessories", "kitchen", "gaming"]
+    extra_products = []
+    base_index = 1
+    for i in range(50):
+        idx = base_index + i
+        brand = random.choice(brands)
+        category = random.choice(extra_categories)
+        name = f"{brand} {category.title()} Item {idx}"
+        desc = f"{brand} {category} with excellent features and reliable performance. Ideal for daily use and gift." \
+               f" Includes warranty and customer support."
+        price = round(random.uniform(9.99, 999.99), 2)
+        rating = round(random.uniform(2.5, 5.0), 1)
+        review_count = random.randint(0, 2000)
+        image_url = f"https://picsum.photos/seed/{brand.lower()}{idx}/500/500"
+        tags = [category, brand.lower(), random.choice(["wireless","portable","premium","budget","eco","smart"]) ]
+        # ensure 2-5 tags
+        while len(tags) < random.randint(2,5):
+            tags.append(random.choice(["durable","lightweight","fast","compact","waterproof","usb-c"]))
+
+        extra_products.append({
+            "sku": f"GEN-{idx:03d}",
+            "name": name,
+            "category": category,
+            "description": desc,
+            "tags": tags,
+            "price": price,
+            "rating": rating,
+            "review_count": review_count,
+            "image_url": image_url,
+            "stock_quantity": random.randint(0, 120),
+            "created_at": datetime.utcnow() - timedelta(days=random.randint(0, 365)),
+            "updated_at": datetime.utcnow(),
+            "seed_source": "bazaar-seed"
+        })
+
+    products.extend(extra_products)
+    # Ensure all seeded products are active so the public API returns them
+    for p in products:
+        p.setdefault('is_active', True)
+
     result = db.products.insert_many(products)
-    print(f"Inserted {len(result.inserted_ids)} products.")
+    print(f"Inserted {len(result.inserted_ids)} products (including 50 generated).")
     return result.inserted_ids
 
 def seed_users(product_ids):
@@ -96,20 +139,57 @@ def seed_users(product_ids):
         preferred_categories = random.sample(["electronics", "fashion", "home", "books", "sports", "beauty", "toys"], k=2)
         # sample some product object ids for viewed list
         viewed = random.sample(list(product_ids), k=min(6, len(product_ids)))
+        # For testing, set a known password for seeded users (all use 'password123')
+        password = 'password123'
         users.append({
             "username": name.lower(),
-            "name": name,
+            "first_name": name,
+            "last_name": "",
             "email": email,
+            "password_hash": generate_password_hash(password),
             "preferred_categories": preferred_categories,
             "viewed_products": viewed,
             "purchase_history": [],  # can be appended later by events
             "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
             "seed_source": "bazaar-seed"
         })
+
+    # Add an admin user and a test user with known passwords so you can log in
+    admin_password = 'adminpass'
+    users.append({
+        "username": 'admin',
+        "first_name": 'Admin',
+        "last_name": '',
+        "email": 'admin@example.com',
+        "password_hash": generate_password_hash(admin_password),
+        "preferred_categories": ["electronics", "books"],
+        "viewed_products": [],
+        "purchase_history": [],
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+        "seed_source": "bazaar-seed"
+    })
+
+    test_password = 'testpass'
+    users.append({
+        "username": 'testuser',
+        "first_name": 'Test',
+        "last_name": 'User',
+        "email": 'testuser@example.com',
+        "password_hash": generate_password_hash(test_password),
+        "preferred_categories": ["fashion", "home"],
+        "viewed_products": [],
+        "purchase_history": [],
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+        "seed_source": "bazaar-seed"
+    })
 
     result = db.users.insert_many(users)
     print(f"Inserted {len(result.inserted_ids)} users.")
     return result.inserted_ids
+    
 
 def seed_events(user_ids, product_ids, days=30):
     events = []

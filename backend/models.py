@@ -48,6 +48,10 @@ class Product(db.Document):
     created_at = db.DateTimeField(default=datetime.utcnow)
     updated_at = db.DateTimeField(default=datetime.utcnow)
     
+    meta = {
+        'collection': 'products'
+    }
+    
     def to_dict(self):
         return {
             'id': str(self.id),
